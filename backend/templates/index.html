@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musikat - Add Songs to Navidrome</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+    {# Avoid href="//" when root_path is "/"; keep single app prefix for API URLs #}
+    {% set _rp = (request.scope.get('root_path') or '').strip() %}
+    {% if not _rp or _rp == '/' %}
+    <base href="/">
+    {% else %}
+    <base href="{{ _rp.rstrip('/') }}/">
+    {% endif %}
+    <script>
+        window.__MUSIKAT_ROOT_PATH__ = {{ (_rp if _rp and _rp != '/' else '') | tojson }};
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Musikat</h1>
+            <p class="subtitle">Search and add songs to your Navidrome server</p>
+        </header>
+
+        <nav class="main-tabs" role="tablist" aria-label="Main">
+            <button type="button" id="tabSearch" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panelSearch">Search</button>
+            <button type="button" id="tabSettings" class="tab-btn" role="tab" aria-selected="false" aria-controls="panelSettings">Settings</button>
+        </nav>
+
+        <div id="panelSearch" class="tab-panel" role="tabpanel" aria-labelledby="tabSearch">
+            <div class="search-section">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Search for songs, artists, albums..."
+                        autocomplete="off"
+                    />
+                    <button id="searchBtn" class="btn btn-primary">Search</button>
+                </div>
+                <div class="search-options search-options--compact">
+                    <div class="search-type-toggle">
+                        <button id="searchTracks" class="toggle-btn active">Tracks</button>
+                        <button id="searchAlbums" class="toggle-btn">Albums</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Searching...</p>
+            </div>
+
+            <div id="error" class="error hidden"></div>
+
+            <div id="results" class="results hidden">
+            <h2>Search Results</h2>
+            <div id="tracksList" class="tracks-list"></div>
+            <div id="albumsList" class="albums-list hidden"></div>
+        </div>
+
+        <div id="reverseResults" class="results hidden">
+            <h2>YouTube → Metadata (Reverse Search)</h2>
+            <div id="reverseYouTubeInfo" class="reverse-yt-info"></div>
+            <div id="reverseSpotifyList" class="tracks-list"></div>
+            <div class="reverse-actions">
+                <button id="reverseManualBtn" class="btn btn-secondary">None match? Enter metadata manually</button>
+            </div>
+            <div id="reverseManualForm" class="reverse-manual hidden">
+                <div class="form-row">
+                    <label>Artist (required, separate by ;)</label>
+                    <input id="manualArtist" type="text" placeholder="Artist1; Artist2" />
+                </div>
+                <div class="form-row">
+                    <label>Song title (required)</label>
+                    <input id="manualName" type="text" placeholder="Song name" />
+                </div>
+                <div class="form-row">
+                    <label>Album artist</label>
+                    <input id="manualAlbumArtist" type="text" placeholder="Album artist" value="YouTube" />
+                </div>
+                <div class="form-row">
+                    <label>Album name</label>
+                    <input id="manualAlbum" type="text" placeholder="Album" value="YouTube" />
+                </div>
+                <div class="form-row">
+                    <label>Track number</label>
+                    <input id="manualTrackNumber" type="number" min="1" placeholder="1" />
+                </div>
+                <div class="form-row">
+                    <label>Release date (YYYY-MM-DD or YYYY)</label>
+                    <input id="manualReleaseDate" type="text" placeholder="2020-01-01" />
+                </div>
+                <div class="reverse-actions">
+                    <button id="reverseUseManual" class="btn btn-primary">Use this metadata</button>
+                </div>
+            </div>
+
+            <div id="reverseFinalize" class="reverse-finalize hidden">
+                <p id="reverseSelectedLabel" class="reverse-selected"></p>
+                <button id="reverseDownloadBtn" class="btn btn-primary">Download from YouTube + Apply Metadata</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="downloadStatus" class="download-status hidden">
+            <h2>Download Queue <span id="queueCount" class="queue-count"></span></h2>
+            <div id="statusContent" class="status-content"></div>
+        </div>
+
+        <div id="panelSettings" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabSettings">
+            <div class="settings-section">
+                <h2 class="settings-heading">Settings</h2>
+                <p class="settings-lead">Defaults for catalog search, download location, encoding, and retries.</p>
+                <div class="settings-grid">
+                    <div class="settings-row">
+                        <label for="metadataProvider">Catalog</label>
+                        <select id="metadataProvider" class="download-select" title="Where to search for track metadata">
+                            <option value="deezer">Deezer (no API key)</option>
+                            <option value="spotify">Spotify (requires credentials)</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="downloadLocation">Download to</label>
+                        <select id="downloadLocation" class="download-select" title="Navidrome targets come from NAVIDROME_MUSIC_PATHS on the server">
+                            <option value="local">Loading libraries…</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="audioFormat">Format</label>
+                        <select id="audioFormat" class="download-select">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="audioQuality">Quality</label>
+                        <select id="audioQuality" class="download-select">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="settings-row settings-row-checkbox">
+                        <label class="checkbox-label" title="If the YouTube download fails, wait and try again automatically (up to 2 extra attempts)">
+                            <input type="checkbox" id="autoRetryDownload" />
+                            Auto-retry on failure (2 extra attempts)
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Album Detail Modal -->
+        <div id="albumModal" class="modal hidden">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2 id="albumModalTitle">Album</h2>
+                    <button class="modal-close" id="albumModalClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="albumDetails" class="album-details"></div>
+                    <div id="albumTracksList" class="album-tracks-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="closeAlbumModal">Close</button>
+                    <button class="btn btn-primary" id="downloadAlbumBtn">Download All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Candidate Selection Modal -->
+    <div id="candidateModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚠️ Multiple Matches Found</h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">
+                    We couldn't confidently match this song. Please select the correct version:
+                </p>
+                <div id="trackInfoDisplay" class="track-info-display"></div>
+                <div id="candidatesList" class="candidates-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelSelection">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', path='app.js') }}"></script>
+</body>
+</html>
+
