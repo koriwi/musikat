@@ -119,6 +119,30 @@ class SpotifyService:
             print(f"Spotify album search error: {e}")
             raise
 
+    def get_new_releases(self, limit: int = 20) -> List[Dict]:
+        """Recent album releases from Spotify."""
+        try:
+            limit = max(1, min(int(limit), 50))
+            results = self._call(
+                self.client.new_releases, country="MX", limit=limit, offset=0
+            )
+            albums = []
+            for item in results["albums"]["items"]:
+                albums.append({
+                    "id": item["id"],
+                    "name": item["name"],
+                    "artist": ", ".join([artist["name"] for artist in item["artists"]]),
+                    "artists": [artist["name"] for artist in item["artists"]],
+                    "release_date": item.get("release_date", ""),
+                    "total_tracks": item.get("total_tracks", 0),
+                    "album_art": item["images"][0]["url"] if item["images"] else None,
+                    "external_url": item["external_urls"]["spotify"],
+                })
+            return albums
+        except Exception as e:
+            print(f"Spotify new releases error: {e}")
+            raise
+
     def get_album_details(self, album_id: str) -> Optional[Dict]:
         try:
             album = self._call(self.client.album, album_id)

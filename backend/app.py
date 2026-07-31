@@ -552,6 +552,21 @@ async def search_albums(request: SearchRequest):
         raise HTTPException(status_code=500, detail=f"Album search failed: {str(e)}")
 
 
+@app.get("/api/new-releases")
+async def get_new_releases(limit: int = Query(20, ge=1, le=100), provider: Optional[str] = Query(None)):
+    """Recent album releases from the selected catalog provider.
+
+    The Lidarr plugin uses this endpoint as its RSS feed and for the
+    indexer connection test.
+    """
+    p = resolve_metadata_provider(provider)
+    svc = get_metadata_service(p)
+    try:
+        return svc.get_new_releases(limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"New releases failed: {str(e)}")
+
+
 @app.get("/api/album/{album_id}")
 async def get_album(album_id: str, provider: Optional[str] = Query(None)):
     """Get album details including all tracks"""

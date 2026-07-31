@@ -83,6 +83,28 @@ class DeezerService:
             })
         return albums
 
+    def get_new_releases(self, limit: int = 20) -> List[Dict]:
+        """Recent album releases from the Deezer editorial feed."""
+        limit = max(1, min(int(limit), 100))
+        data = _get("/editorial/0/releases", {"limit": limit})
+        items = data.get("data") or []
+        albums = []
+        for a in items:
+            artist = a.get("artist") or {}
+            artists = [artist["name"]] if artist.get("name") else []
+            cover = a.get("cover_xl") or a.get("cover_big") or a.get("cover_medium")
+            albums.append({
+                "id": str(a.get("id", "")),
+                "name": a.get("title", "Unknown"),
+                "artist": artist.get("name", "Unknown"),
+                "artists": artists,
+                "release_date": (a.get("release_date") or "")[:10],
+                "total_tracks": int(a.get("nb_tracks") or 0),
+                "album_art": cover,
+                "external_url": a.get("link", ""),
+            })
+        return albums
+
     def get_album_details(self, album_id: str) -> Optional[Dict]:
         try:
             album = _get(f"/album/{album_id}")

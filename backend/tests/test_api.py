@@ -69,6 +69,12 @@ def test_cancel_unknown_job_returns_404(client: TestClient) -> None:
     assert r.status_code == 404
 
 
+def test_new_releases_invalid_provider(client: TestClient) -> None:
+    r = client.get("/api/new-releases", params={"provider": "not-a-provider"})
+    assert r.status_code == 400
+    assert "provider" in r.json()["detail"].lower()
+
+
 def test_cancel_queued_job(client: TestClient) -> None:
     from utils.job_store import _db, get_job, upsert_job
 
