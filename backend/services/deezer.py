@@ -84,9 +84,13 @@ class DeezerService:
         return albums
 
     def get_new_releases(self, limit: int = 20) -> List[Dict]:
-        """Recent album releases from the Deezer editorial feed."""
+        """Recent albums from the Deezer chart feed.
+
+        Deezer's editorial releases endpoint returns an empty list, so this
+        uses the global albums chart instead.
+        """
         limit = max(1, min(int(limit), 100))
-        data = _get("/editorial/0/releases", {"limit": limit})
+        data = _get("/chart/0/albums", {"limit": limit})
         items = data.get("data") or []
         albums = []
         for a in items:
